@@ -36,8 +36,10 @@ platf_tr = pygame.transform.scale(load_image('platf_tr.png', -1), (90, 60))  # �
 platf_br = pygame.transform.scale(load_image('platf_br.png', -1), (90, 60))  # сломанная платформа из дерева
 
 FPS = 60
-v = 3
+picture_v = 3
 start = False
+jump_time = 0
+first_game = True
 
 
 def start_pictures(fon, intro_text, record):
@@ -63,6 +65,7 @@ def terminate():
 
 
 def start_screen():
+    global start, first_game
     intro_text = ["Doodle_Прыг", "",
                   "Нажимая клавиши 'вправо', 'влево',",
                   "перемещайте героя на платформы.",
@@ -75,33 +78,29 @@ def start_screen():
     fon = pygame.transform.scale(load_image('fon.jpg'), size)
 
     run = True
-    start = False
     time_picture = 0
-    first = False
     while run:
         ev = None
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
                 terminate()
-            elif event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN or \
-                    start is True:
-                if start is False:
-                    first = True
-                    start = True
+            elif event.type == pygame.KEYDOWN or event.type == pygame.MOUSEBUTTONDOWN:
+                if start:
+                    first_game = False
                 else:
-                    first = False
+                    start = True
                 ev = event
-        if start is True:
-            the_game(first, time_picture, ev)
-        if int(time_picture % 2) == 0 and start is False:
-            start_pictures(fon, intro_text, record)
-            screen.blit(doodle, (-20, 170))
-        elif start is False:
-            start_pictures(fon, intro_text, record)
-            screen.blit(doodle_jump, (-20, 170))
-        time_picture += v / FPS
-        # начинаем игру
+        if start:
+            the_game(ev)  # начинаем игру
+        else:
+            if int(time_picture % 2) == 0:
+                start_pictures(fon, intro_text, record)
+                screen.blit(doodle, (-20, 170))
+            else:
+                start_pictures(fon, intro_text, record)
+                screen.blit(doodle_jump, (-20, 170))
+        time_picture += picture_v / FPS
         pygame.display.flip()
         clock.tick(FPS)
 
@@ -109,23 +108,26 @@ def start_screen():
 class Doodle:
     def __init__(self):
         self.coor = (self.x, self.y) = (210, 540)
-        self.hight = -10
+        self.height = -10
 
     def jump(self):
-        self.coor = (self.x, self.y + self.hight)
+        self.y += self.height
+        self.coor = (self.x, self.y + self.height)
 
     def right(self):
-        self.coor = (self.x + 10, self.coor[1])
+        self.x += 5
+        self.coor = (self.x, self.y)
 
     def left(self):
-        self.coor = (self.x - 10, self.coor[1])
+        self.x -= 5
+        self.coor = (self.x, self.y)
 
     def change_high(self, time):
-        if time % 33333333:
+        if time % 3:
             if time < 100:
-                self.hight += 1
+                self.height += 1
             else:
-                self.hight -= 1
+                self.height -= 1
 
     def get_posit(self):
         return self.coor
@@ -137,10 +139,10 @@ class Doodle:
     def collision(self):
         x1 = self.x
         y1 = self.y
-        l1 = 18  # ширина doodle
-        h1 = 12  # длина doodle
-        l2 = 18  # ширина monster
-        h2 = 12  # длина monster
+        l1 = 90  # ширина doodle
+        h1 = 60  # длина doodle
+        l2 = 90  # ширина monster
+        h2 = 60  # длина monster
         collis = False
         for i in monsters:
             x2 = i.get_posit()[0]
@@ -153,12 +155,12 @@ class Doodle:
     def platf(self):
         x1 = self.x
         y1 = self.y
-        h1 = 10  #длина doodle
-        l1 = 10  #ширина doodle
+        h1 = 10  # длина doodle
+        l1 = 10  # ширина doodle
         collis = False
         for i in platforms:
-            h2 = i.get_height()  #длина platf
-            l2 = i.get_len  #ширина platf
+            h2 = i.get_height()  # длина platf
+            l2 = i.get_len  # ширина platf
             x2 = i.get_posit()[0]
             y2 = i.get_posit()[1]
             if (x1 + l1) >= x2 and (y1 + h1 <= y2 or y1 <= y2 + h2) or (x1 <= x2 + l2) and \
@@ -197,13 +199,14 @@ class Start_End:
         pass
 
     def end(self):
-        pass
+        return False
 
 
 class Background:
     def __init__(self):
         self.result = 0
         self.dir = os.path.dirname(__file__)
+        self.record = 0
 
     def get_result(self):
         with open(os.path.join(self.dir, record_height), 'r+') as f:
@@ -217,20 +220,39 @@ class Background:
             return 'Рекорд: {}'.format(self.record), 'Ваш результат: {}'.format(self.result)
 
 
+class Land:
+    def __init__(self, coor=550):
+        self.land_coor = (0, 550, width, height - 550)
+
+    def in_screen(self):
+        if self.land_coor[2] < 600:
+            return True
+        else:
+            return False
+
+    def draw(self):
+        screen.fill(pygame.Color('green'), pygame.Rect(self.land_coor))
+
+    def jump(self, height):
+        self.land_coor[1] += height
+
+
 platforms = []
 monsters = []
-
 main = Doodle()
+land = Land()
 
 
-def the_game(first, time, ev=None):
-    global doodle, doodle_jump, start
-    if first is True:
-        screen.fill((0, 191, 255))
-        screen.fill(pygame.Color('green'), pygame.Rect(0, 550, width, height - 550))
+def the_game(ev=None):
+    global doodle, doodle_jump, start, first_game, land
+    screen.fill((0, 191, 255))
+    if first_game is True:
+        land = Land(550)
+    if land.in_screen() is True:
+        land.draw()
         doodle = pygame.transform.scale(doodle, (90, 60))
     screen.blit(doodle, main.get_posit())
-    main.change_high(time)
+    # main.change_high(time)
     if ev:
         if ev.type == pygame.KEYDOWN:
             if ev.key == pygame.K_LEFT:
@@ -238,9 +260,9 @@ def the_game(first, time, ev=None):
             elif ev.key == pygame.K_RIGHT:
                 main.right()
         if ev.type == pygame.MOUSEBUTTONDOWN:
-            if pygame.mouse.get_pos()[0] < main.get_posit()[0]:
+            if pygame.mouse.get_pos()[0] < main.get_posit()[0] + 45:
                 main.left()
-            elif pygame.mouse.get_pos()[0] > main.get_posit()[0]:
+            elif pygame.mouse.get_pos()[0] > main.get_posit()[0] + 45:
                 main.right()
         if main.check_end:
             start = False
